@@ -6,26 +6,31 @@ import numpy as np
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph as pg
 import cv2
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog, QLineEdit, QLabel
+from PyQt5.QtGui import QDoubleValidator
 
 from webcamSimulator import WebcamSimulator
 from matplotlibWindow import MatplotlibWindow
 from tifffile import tifffile
 
+from scipy.optimize import curve_fit
+
+def gauss(x,x0,sigma,a,offset):
+    return a*np.exp(-(x-x0)**2/(2*sigma**2))+offset
 
 class WebcamManager(QtGui.QWidget):
     """class handling a webcam and displaying its frames on screen
     
     :param TempestaGUI main: the main GUI.
     """
-    def __init__(self,main, simulation = True):
+    def __init__(self,main, simulation = False):
         super().__init__()
         self.simulation = simulation
         if self.simulation:
             self.webcam = WebcamSimulator()
         else:
             self.webcam=cv2.VideoCapture(1)
-        
+            
         self.main=main
         self.frameStart = (0, 0)
         self.title=QtGui.QLabel()
@@ -34,6 +39,7 @@ class WebcamManager(QtGui.QWidget):
         
         self.display = MatplotlibWindow()
         self.curframe = np.random.rand(50,50)
+        # self.curframe = tifffile.imread("/home/aurelien/Documents/Fritzsche Lab/calqtrace/SUM_Stack.tif")
 #        These attributes are the widgets which will be used in the main script
         self.imageWidget = pg.GraphicsLayoutWidget()
         
@@ -55,18 +61,27 @@ class WebcamManager(QtGui.QWidget):
         self.savePushbutton = QtGui.QPushButton("Save frame")
         self.savePushbutton.clicked.connect(self.save_prompt)
         
+        self.pixelSizeLineEdit = QLineEdit("4.2")
+        self.pixelUnitLineEdit = QLineEdit("um")
+        self.pixelCharacteristicLabel = QLabel("Pixel size/unit")
+        val = QDoubleValidator()
+        self.pixelSizeLineEdit.setValidator(val)
+        
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
         
         self.viewCtrlLayout = QtGui.QGridLayout()
-        self.viewCtrlLayout.addWidget(self.title,0,0)
-        self.viewCtrlLayout.addWidget(self.imageWidget,1,0,3,4)
+        self.viewCtrlLayout.addWidget(self.title,0,0)   
+        self.viewCtrlLayout.addWidget(self.imageWidget,1,0,3,7)
         self.viewCtrlLayout.addWidget(self.liveviewButton, 5, 0, 1, 1)
         self.viewCtrlLayout.addWidget(self.exposureLabel,5,1,1,1)
         self.viewCtrlLayout.addWidget(self.exposureButton,5,2,1,1)
         self.viewCtrlLayout.addWidget(self.savePushbutton,5,3,1,1)
+        self.viewCtrlLayout.addWidget(self.pixelCharacteristicLabel,5,4,1,1)
+        self.viewCtrlLayout.addWidget(self.pixelSizeLineEdit,5,5,1,1)
+        self.viewCtrlLayout.addWidget(self.pixelUnitLineEdit,5,6,1,1)
         
-        self.viewCtrlLayout.addWidget(self.display,1,5,3,3)
+        self.viewCtrlLayout.addWidget(self.display,1,7,3,3)
         
         self.setLayout(self.viewCtrlLayout)
         
@@ -98,6 +113,7 @@ class WebcamManager(QtGui.QWidget):
         """:param numpy.ndarray array: the image to display"""
         self.img.setImage(array.astype(np.float))
         self.curframe = array
+        
     def liveview(self):
         """Method called when the LiveviewButton is pressed. Starts or Stops Liveview."""
         if self.liveviewButton.isChecked():
@@ -129,14 +145,18 @@ class WebcamManager(QtGui.QWidget):
         
     def update_rois(self,roi,axes = None,*args,**kwargs):
 
-        
         data=[]
         names = []
-        unit = "pixels"
-        print(self.img.data)
-        print(self.img)
+        try:
+            unit = self.pixelUnitLineEdit.text()
+        except:
+            unit = "pixels"
         data = self.roi.getArrayRegion(self.curframe, self.img, axes=(0,1))
-        psize = 1
+        try:
+            psize = float(self.pixelSizeLineEdit.text())
+        except:
+            print("Error reading pixel size")
+            psize = 1
             
         #if axes is None:
         fig = self.display.figure
@@ -144,14 +164,26 @@ class WebcamManager(QtGui.QWidget):
         fig.clf()
         ax = fig.add_subplot(1,1,1)
 
-        """if self.fitButton.isChecked():
-            self.fit_data(ax=ax)"""
-                
-        ax.plot(np.arange(data.size)*psize,data)
+        xdata = np.arange(data.size)*psize
+        ax.plot(xdata,data)
             
         ax.set_xlabel("Distance ("+unit+")")
         ax.set_ylabel("Counts")
-    
+        
+        if self.display.fittingWidget.fitCheckBox.isChecked():
+            bounds = ((xdata.min(),0.1,0,0),
+                      (xdata.max(),xdata.max()/2,data.max()*2),data.max())
+            try:
+                popt, _ = curve_fit(gauss,xdata,data,bounds = bounds)
+                yh = gauss(xdata,*popt)
+            except:
+                print("Fitting error")
+                popt = [-1,-1,1]
+                yh = np.zeros_like(xdata)
+            fwhm = popt[1]*np.sqrt(8)*np.log(2)
+            self.display.fittingWidget.fitResultsValues.setText("FWHM: {} {}".format(fwhm, unit))
+            ax.plot(xdata,yh,color="black",linestyle="--")
+            
         self.display.plot()
     
     def save_prompt(self):
