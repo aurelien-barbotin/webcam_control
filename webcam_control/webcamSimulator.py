@@ -9,10 +9,13 @@ import numpy as np
 
 class WebcamSimulator(object):
     def __init__(self, *args, **kwargs):
-        self.image = np.random.rand(50,50)
+        self.image = np.random.rand(50,50,3)
+        
     def read(self):
-        return None, np.random.rand(50,50)
+        return None, np.random.rand(50,50,3)
+    
     def set(self, *args,**kwargs):
         pass
+    
     def release(self):
         pass

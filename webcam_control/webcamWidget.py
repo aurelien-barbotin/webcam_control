@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph as pg
 import cv2
@@ -19,10 +18,6 @@ def gauss(x,x0,sigma,a,offset):
     return a*np.exp(-(x-x0)**2/(2*sigma**2))+offset
 
 class WebcamManager(QtGui.QWidget):
-    """class handling a webcam and displaying its frames on screen
-    
-    :param TempestaGUI main: the main GUI.
-    """
     def __init__(self,main, simulation = False):
         super().__init__()
         self.simulation = simulation
@@ -111,6 +106,7 @@ class WebcamManager(QtGui.QWidget):
 
     def setImage(self,array):
         """:param numpy.ndarray array: the image to display"""
+        array = array.mean(axis=2)
         self.img.setImage(array.astype(np.float))
         self.curframe = array
         
@@ -172,12 +168,13 @@ class WebcamManager(QtGui.QWidget):
         
         if self.display.fittingWidget.fitCheckBox.isChecked():
             bounds = ((xdata.min(),0.1,0,0),
-                      (xdata.max(),xdata.max()/2,data.max()*2),data.max())
+                      (xdata.max(),xdata.max()/2,data.max()*2,data.max()))
             try:
                 popt, _ = curve_fit(gauss,xdata,data,bounds = bounds)
                 yh = gauss(xdata,*popt)
-            except:
+            except Exception as e:
                 print("Fitting error")
+                print(e)
                 popt = [-1,-1,1]
                 yh = np.zeros_like(xdata)
             fwhm = popt[1]*np.sqrt(8)*np.log(2)
