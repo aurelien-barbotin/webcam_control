@@ -84,6 +84,7 @@ class WebcamManager(QtGui.QWidget):
         self.exposureButton.textChanged.connect(self.lvworker.setExposure)
         
         self.lvworker.newframeSignal.connect(self.setImage)
+        self.lvworker.updateRoiSignal.connect(self.update_rois)
 
         # Image Widget
         #self.imageWidget.addItem(self.line)
@@ -109,7 +110,7 @@ class WebcamManager(QtGui.QWidget):
         array = array.mean(axis=2)
         self.img.setImage(array.astype(np.float))
         self.curframe = array
-        
+        # self.update_rois(None, None)
     def liveview(self):
         """Method called when the LiveviewButton is pressed. Starts or Stops Liveview."""
         if self.liveviewButton.isChecked():
@@ -139,7 +140,7 @@ class WebcamManager(QtGui.QWidget):
         self.webcam.release()
         
         
-    def update_rois(self,roi,axes = None,*args,**kwargs):
+    def update_rois(self,axes = None,*args,**kwargs):
 
         data=[]
         names = []
@@ -203,6 +204,9 @@ class LVWorker(QtCore.QThread):
     :param WebcamManager webcam: the webcam widget using this thread
     :param cv2.VideoCapture webcam: the opencv instance of the webcam emitting the frames."""
     newframeSignal = QtCore.pyqtSignal(np.ndarray)
+    
+    updateRoiSignal = QtCore.pyqtSignal()
+    
     def __init__(self, main, webcam, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.main = main
@@ -216,12 +220,16 @@ class LVWorker(QtCore.QThread):
 
         self.running = True
         import time
+        ct = 0
         while(self.running):
             osef,frame = self.webcam.read()
             frame = np.rot90(frame)
             self.newframeSignal.emit(frame )
             time.sleep(0.01)
-
+            ct+=1
+            if ct==50:
+                ct = 0
+                self.updateRoiSignal.emit()
     def setExposure(self,value):
         """ :param float value: the new exposure time parameter
         """
