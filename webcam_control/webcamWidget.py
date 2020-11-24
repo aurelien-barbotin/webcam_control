@@ -227,7 +227,7 @@ class LVWorker(QtCore.QThread):
             self.newframeSignal.emit(frame )
             time.sleep(0.01)
             ct+=1
-            if ct==50:
+            if ct==20:
                 ct = 0
                 self.updateRoiSignal.emit()
     def setExposure(self,value):

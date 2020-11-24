@@ -9,7 +9,6 @@ Created on Mon Nov  9 15:31:43 2020
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib_scalebar.scalebar import ScaleBar
 from pyqtgraph.Qt import QtCore, QtGui
 from PyQt5.QtWidgets import QWidget, QCheckBox, QLabel
 
